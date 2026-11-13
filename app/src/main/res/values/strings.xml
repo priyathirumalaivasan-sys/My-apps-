@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">Vasan AI Studio</string>
+    <string name="app_tagline">Imagine. Create. Animate.</string>
+    <string name="sign_in_with_google">Sign in with Google</string>
+    <string name="nav_studio">Studio</string>
+    <string name="nav_projects">Projects</string>
+    <string name="nav_gallery">Gallery</string>
+    <string name="nav_assist">AI Tools</string>
+    <string name="nav_profile">Account</string>
+    <string name="cd_app_logo">Vasan AI Studio Logo</string>
+    <string name="cd_hero_banner">Vasan AI Studio Cinema Banner</string>
+    <string name="cd_empty_reel">Empty Video Reel Illustration</string>
+</resources>

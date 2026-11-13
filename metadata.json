@@ -1,0 +1,6 @@
+{
+  "name": "Vasan AI Studio",
+  "description": "Professional AI Video Generator & Creative Suite — Imagine. Create. Animate.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

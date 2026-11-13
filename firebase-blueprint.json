@@ -1,0 +1,171 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated Vasan AI Studio creator profile, credit balance, and role.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID matching document ID." },
+        "displayName": { "type": "string", "description": "Creator display name." },
+        "email": { "type": "string", "description": "Creator email address." },
+        "photoUrl": { "type": "string", "description": "Optional avatar URL." },
+        "credits": { "type": "integer", "description": "Available video generation credits." },
+        "plan": {
+          "type": "string",
+          "enum": ["starter", "pro", "studio"],
+          "description": "Subscription tier."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["user", "admin"],
+          "description": "Access role; self-registration must be 'user'."
+        },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on creation." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on update." }
+      },
+      "required": ["userId", "displayName", "email", "credits", "plan", "role", "createdAt", "updatedAt"]
+    },
+    "StudioProject": {
+      "title": "StudioProject",
+      "description": "A creative video project with character consistency seed and default visual parameters.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID." },
+        "title": { "type": "string", "description": "Project title." },
+        "description": { "type": "string", "description": "Project synopsis or notes." },
+        "characterSeed": { "type": "string", "description": "Reusable character consistency bible." },
+        "defaultStyle": {
+          "type": "string",
+          "enum": ["Realistic", "3D", "Anime", "Cartoon", "Cinematic"],
+          "description": "Default visual style."
+        },
+        "defaultAspectRatio": {
+          "type": "string",
+          "enum": ["9:16", "16:9", "1:1"],
+          "description": "Default aspect ratio."
+        },
+        "videoCount": { "type": "integer", "description": "Count of generated video jobs in project." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on creation." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on update." }
+      },
+      "required": ["userId", "title", "description", "characterSeed", "defaultStyle", "defaultAspectRatio", "videoCount", "createdAt", "updatedAt"]
+    },
+    "VideoJob": {
+      "title": "VideoJob",
+      "description": "Asynchronous AI video generation job and configuration metadata.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID." },
+        "projectId": { "type": "string", "description": "Optional parent StudioProject ID." },
+        "modelProvider": {
+          "type": "string",
+          "enum": ["Kling AI", "MiniMax Hailuo AI", "Google Veo", "Runway AI"],
+          "description": "Selected AI video model provider."
+        },
+        "generationMode": {
+          "type": "string",
+          "enum": ["Text to Video", "Image to Video", "Video to Video", "AI Animation", "Cartoon Video Generator", "Character Animation"],
+          "description": "Video generation workflow mode."
+        },
+        "prompt": { "type": "string", "description": "Primary generation prompt." },
+        "negativePrompt": { "type": "string", "description": "Negative prompt exclusions." },
+        "language": {
+          "type": "string",
+          "enum": ["English", "Tamil"],
+          "description": "Prompt/voiceover language."
+        },
+        "durationSeconds": {
+          "type": "integer",
+          "enum": [5, 10, 15],
+          "description": "Target clip duration in seconds."
+        },
+        "aspectRatio": {
+          "type": "string",
+          "enum": ["9:16", "16:9", "1:1"],
+          "description": "Output aspect ratio."
+        },
+        "resolution": {
+          "type": "string",
+          "enum": ["720p", "1080p"],
+          "description": "Output resolution."
+        },
+        "fps": {
+          "type": "integer",
+          "enum": [24, 30, 60],
+          "description": "Target frame rate."
+        },
+        "cameraMovement": { "type": "string", "description": "Camera motion preset." },
+        "motionIntensity": { "type": "integer", "description": "Motion intensity 1-10." },
+        "visualStyle": {
+          "type": "string",
+          "enum": ["Realistic", "3D", "Anime", "Cartoon", "Cinematic"],
+          "description": "Selected visual style."
+        },
+        "audioTrack": { "type": "string", "description": "Selected background audio or TTS mode." },
+        "status": {
+          "type": "string",
+          "enum": ["queued", "processing", "completed", "failed", "config_required"],
+          "description": "Current async generation status."
+        },
+        "progress": { "type": "integer", "description": "Progress percentage 0-100." },
+        "remoteJobId": { "type": "string", "description": "Backend/provider job identifier." },
+        "videoUrl": { "type": "string", "description": "Downloadable MP4 URL when completed." },
+        "thumbnailUrl": { "type": "string", "description": "Thumbnail preview URL." },
+        "errorMessage": { "type": "string", "description": "Clear error or configuration notice." },
+        "creditsCost": { "type": "integer", "description": "Credits reserved or spent for this job." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on creation." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on update." }
+      },
+      "required": [
+        "userId", "modelProvider", "generationMode", "prompt", "negativePrompt",
+        "language", "durationSeconds", "aspectRatio", "resolution", "fps",
+        "cameraMovement", "motionIntensity", "visualStyle", "audioTrack",
+        "status", "progress", "creditsCost", "createdAt", "updatedAt"
+      ]
+    },
+    "CreditTransaction": {
+      "title": "CreditTransaction",
+      "description": "Immutable ledger entry for credit deductions and admin grants.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID." },
+        "amount": { "type": "integer", "description": "Signed credit delta." },
+        "reason": { "type": "string", "description": "Transaction description." },
+        "jobId": { "type": "string", "description": "Optional associated VideoJob ID." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp." }
+      },
+      "required": ["userId", "amount", "reason", "createdAt"]
+    },
+    "AdminMarker": {
+      "title": "AdminMarker",
+      "description": "Server-managed marker document designating an administrator UID.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "description": "Admin email." }
+      },
+      "required": ["email"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Creator profile, credits balance, and role."
+    },
+    "/users/{userId}/projects/{projectId}": {
+      "schema": { "$ref": "#/entities/StudioProject" },
+      "description": "Creator studio projects with character consistency seeds."
+    },
+    "/users/{userId}/videoJobs/{jobId}": {
+      "schema": { "$ref": "#/entities/VideoJob" },
+      "description": "Asynchronous AI video generation jobs and history."
+    },
+    "/users/{userId}/creditTransactions/{txId}": {
+      "schema": { "$ref": "#/entities/CreditTransaction" },
+      "description": "Immutable credit ledger for user account."
+    },
+    "/admins/{uid}": {
+      "schema": { "$ref": "#/entities/AdminMarker" },
+      "description": "Admin role lookup collection."
+    }
+  }
+}

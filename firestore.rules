@@ -1,0 +1,217 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: deny everything by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HELPERS ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        ('email_verified' in request.auth.token &&
+         request.auth.token.email_verified == true &&
+         'email' in request.auth.token &&
+         request.auth.token.email == 'priyathirumalaivasan@gmail.com')
+      );
+    }
+
+    // --- VALIDATION HELPERS ---
+    function isValidUserProfile(data, userId) {
+      return data.userId is string && data.userId == userId && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+             data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+             (!('photoUrl' in data) || data.photoUrl == null || (data.photoUrl is string && data.photoUrl.size() <= 500)) &&
+             data.credits is int && data.credits >= 0 && data.credits <= 1000000 &&
+             data.plan in ['starter', 'pro', 'studio'] &&
+             data.role in ['user', 'admin'] &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidProject(data, userId) {
+      return data.userId is string && data.userId == userId && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
+             data.description is string && data.description.size() <= 500 &&
+             data.characterSeed is string && data.characterSeed.size() <= 1000 &&
+             data.defaultStyle in ['Realistic', '3D', 'Anime', 'Cartoon', 'Cinematic'] &&
+             data.defaultAspectRatio in ['9:16', '16:9', '1:1'] &&
+             data.videoCount is int && data.videoCount >= 0 && data.videoCount <= 100000 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidVideoJob(data, userId) {
+      return data.userId is string && data.userId == userId && data.userId.size() <= 128 &&
+             (!('projectId' in data) || data.projectId == null || (data.projectId is string && data.projectId.size() <= 128)) &&
+             data.modelProvider in ['Kling AI', 'MiniMax Hailuo AI', 'Google Veo', 'Runway AI'] &&
+             data.generationMode in ['Text to Video', 'Image to Video', 'Video to Video', 'AI Animation', 'Cartoon Video Generator', 'Character Animation'] &&
+             data.prompt is string && data.prompt.size() >= 1 && data.prompt.size() <= 2000 &&
+             data.negativePrompt is string && data.negativePrompt.size() <= 1000 &&
+             data.language in ['English', 'Tamil'] &&
+             data.durationSeconds in [5, 10, 15] &&
+             data.aspectRatio in ['9:16', '16:9', '1:1'] &&
+             data.resolution in ['720p', '1080p'] &&
+             data.fps in [24, 30, 60] &&
+             data.cameraMovement is string && data.cameraMovement.size() >= 1 && data.cameraMovement.size() <= 60 &&
+             data.motionIntensity is int && data.motionIntensity >= 1 && data.motionIntensity <= 10 &&
+             data.visualStyle in ['Realistic', '3D', 'Anime', 'Cartoon', 'Cinematic'] &&
+             data.audioTrack is string && data.audioTrack.size() >= 1 && data.audioTrack.size() <= 80 &&
+             data.status in ['queued', 'processing', 'completed', 'failed', 'config_required'] &&
+             data.progress is int && data.progress >= 0 && data.progress <= 100 &&
+             (!('remoteJobId' in data) || data.remoteJobId == null || (data.remoteJobId is string && data.remoteJobId.size() <= 200)) &&
+             (!('videoUrl' in data) || data.videoUrl == null || (data.videoUrl is string && data.videoUrl.size() <= 1500)) &&
+             (!('thumbnailUrl' in data) || data.thumbnailUrl == null || (data.thumbnailUrl is string && data.thumbnailUrl.size() <= 1500)) &&
+             (!('errorMessage' in data) || data.errorMessage == null || (data.errorMessage is string && data.errorMessage.size() <= 1000)) &&
+             data.creditsCost is int && data.creditsCost >= 0 && data.creditsCost <= 500 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidCreditTransaction(data, userId) {
+      return data.userId is string && data.userId == userId && data.userId.size() <= 128 &&
+             data.amount is int && data.amount >= -10000 && data.amount <= 10000 &&
+             data.reason is string && data.reason.size() >= 1 && data.reason.size() <= 200 &&
+             (!('jobId' in data) || data.jobId == null || (data.jobId is string && data.jobId.size() <= 128)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    // --- COLLECTION RULES ---
+
+    match /admins/{uid} {
+      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+      allow write: if false;
+    }
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+
+      allow create: if isValidId(userId) &&
+                       isOwner(userId) &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'email', 'credits', 'plan', 'role', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'displayName', 'email', 'photoUrl', 'credits', 'plan', 'role', 'createdAt', 'updatedAt']) &&
+                       isValidUserProfile(incoming(), userId) &&
+                       incoming().credits == 100 &&
+                       incoming().plan == 'starter' &&
+                       incoming().role == 'user';
+
+      allow update: if isValidId(userId) &&
+                       isValidUserProfile(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt && (
+                         isAdmin() ||
+                         (
+                           isOwner(userId) &&
+                           incoming().role == existing().role &&
+                           incoming().plan == existing().plan &&
+                           incoming().credits <= existing().credits &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoUrl', 'credits', 'updatedAt'])
+                         )
+                       );
+
+      allow delete: if isValidId(userId) && isAdmin();
+
+      match /projects/{projectId} {
+        allow get: if isValidId(userId) && isValidId(projectId) && (isOwner(userId) || isAdmin());
+        allow list: if isValidId(userId) && (isOwner(userId) || isAdmin());
+
+        allow create: if isValidId(userId) && isValidId(projectId) &&
+                         (isOwner(userId) || isAdmin()) &&
+                         incoming().keys().hasAll(['userId', 'title', 'description', 'characterSeed', 'defaultStyle', 'defaultAspectRatio', 'videoCount', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'title', 'description', 'characterSeed', 'defaultStyle', 'defaultAspectRatio', 'videoCount', 'createdAt', 'updatedAt']) &&
+                         isValidProject(incoming(), userId);
+
+        allow update: if isValidId(userId) && isValidId(projectId) &&
+                         isValidProject(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt && (
+                           isAdmin() ||
+                           (
+                             isOwner(userId) &&
+                             incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'characterSeed', 'defaultStyle', 'defaultAspectRatio', 'videoCount', 'updatedAt'])
+                           )
+                         );
+
+        allow delete: if isValidId(userId) && isValidId(projectId) && (isOwner(userId) || isAdmin());
+      }
+
+      match /videoJobs/{jobId} {
+        allow get: if isValidId(userId) && isValidId(jobId) && (isOwner(userId) || isAdmin());
+        allow list: if isValidId(userId) && (isOwner(userId) || isAdmin());
+
+        allow create: if isValidId(userId) && isValidId(jobId) &&
+                         (isOwner(userId) || isAdmin()) &&
+                         incoming().keys().hasAll([
+                           'userId', 'modelProvider', 'generationMode', 'prompt', 'negativePrompt',
+                           'language', 'durationSeconds', 'aspectRatio', 'resolution', 'fps',
+                           'cameraMovement', 'motionIntensity', 'visualStyle', 'audioTrack',
+                           'status', 'progress', 'creditsCost', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'projectId', 'modelProvider', 'generationMode', 'prompt', 'negativePrompt',
+                           'language', 'durationSeconds', 'aspectRatio', 'resolution', 'fps',
+                           'cameraMovement', 'motionIntensity', 'visualStyle', 'audioTrack',
+                           'status', 'progress', 'remoteJobId', 'videoUrl', 'thumbnailUrl',
+                           'errorMessage', 'creditsCost', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidVideoJob(incoming(), userId);
+
+        allow update: if isValidId(userId) && isValidId(jobId) &&
+                         isValidVideoJob(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt && (
+                           isAdmin() ||
+                           (
+                             isOwner(userId) &&
+                             existing().status in ['queued', 'processing'] &&
+                             incoming().diff(existing()).affectedKeys().hasOnly([
+                               'status', 'progress', 'remoteJobId', 'videoUrl', 'thumbnailUrl', 'errorMessage', 'updatedAt'
+                             ])
+                           )
+                         );
+
+        allow delete: if isValidId(userId) && isValidId(jobId) && (isOwner(userId) || isAdmin());
+      }
+
+      match /creditTransactions/{txId} {
+        allow get: if isValidId(userId) && isValidId(txId) && (isOwner(userId) || isAdmin());
+        allow list: if isValidId(userId) && (isOwner(userId) || isAdmin());
+
+        allow create: if isValidId(userId) && isValidId(txId) &&
+                         incoming().keys().hasAll(['userId', 'amount', 'reason', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'amount', 'reason', 'jobId', 'createdAt']) &&
+                         isValidCreditTransaction(incoming(), userId) && (
+                           isAdmin() ||
+                           (isOwner(userId) && incoming().amount <= 0)
+                         );
+
+        allow update, delete: if false;
+      }
+    }
+  }
+}
